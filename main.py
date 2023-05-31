@@ -1,3 +1,4 @@
+import platform
 import random
 import sys
 import threading
@@ -17,9 +18,37 @@ import socks
 logging.basicConfig(level=logging.ERROR)
 warnings.simplefilter("ignore")
 
+OUTPUT_COLORS = [
+    "",
+    " [\033[0;34mr \033[0m] ",
+    " [\033[0;35mR \033[0m] ",
+    " [\033[0;31mt \033[0m] ",
+    " [\033[0;33mTi\033[0m] ",
+    " [\033[0;32mT \033[0m] "
+]
+
+
+def p(c, *args, **kwargs):
+    kwargs["flush"] = True
+
+    print(OUTPUT_COLORS[c], end="", flush=True)
+    print(*args, **kwargs)
+    time.sleep(0.2)
+
+
+def i(c, *args, **kwargs):
+    kwargs["flush"] = True
+    kwargs["end"] = ""
+
+    print(OUTPUT_COLORS[c], end="", flush=True)
+    print(*args, **kwargs)
+    inp = input()
+    time.sleep(0.2)
+    return inp
+
 
 def reinstall_tor():
-    print(" [\033[0;34mr \033[0m] Reinstalling Tor")
+    p(1, "Reinstalling Tor")
 
     TorKey = """
 -----BEGIN PGP PUBLIC KEY BLOCK-----
@@ -297,15 +326,12 @@ aBO6HeWxoO5XDO1IcxD38GVDKimmsJa586stbBiyYtEGRK1IR6N7VPbB2KgLVBDb
     """
 
     if os.path.exists("tor"):
-        time.sleep(0.2)
-        print(" [\033[0;34mr \033[0m] Clearing old folders")
+        p(1, "Clearing old folders")
         shutil.rmtree("tor")
     else:
-        time.sleep(0.2)
-        print(" [\033[0;34mr \033[0m] Old Tor install not found")
+        p(1, "Old Tor install not found")
 
-    time.sleep(0.2)
-    print(" [\033[0;34mr \033[0m] Fetching download links")
+    p(1, "Fetching download links")
     data = requests.get("https://www.torproject.org/download/tor/")
     data = data.text.split("\n")
     links = [
@@ -314,35 +340,48 @@ aBO6HeWxoO5XDO1IcxD38GVDKimmsJa586stbBiyYtEGRK1IR6N7VPbB2KgLVBDb
         .split("\"")[0]
         for _ in data if "downloadLink" in _
     ]
-    print(" [\033[0;34mr \033[0m] Please select download:")
-    time.sleep(0.2)
-    for _ in range(0, len(links), 4):
-        print(end="     ")
-        for __, link in enumerate(links[_:_+4]):
-            name = link.split('/')[-1].strip('tor-expert-bundle-').strip('.tar.gz').replace("-", " ")
-            print(f"{str(_ + __):>2s}: {name:30s}", end="")
-            time.sleep(0.2)
-        print()
-    time.sleep(0.2)
+    p(1, "Attempting to autodetect OS")
 
-    download_link = int(input(" [\033[0;34mr \033[0m] download << "))
-    time.sleep(0.2)
+    operating_system = platform.system()
+    architecture, _ = platform.architecture()
+    search_query = ""
+
+    if operating_system == "Windows" and architecture == "64bit":
+        search_query = "windows-x86_64"
+
+    if search_query:
+        p(1, "Detected", operating_system, architecture)
+
+        links = [_ for _ in links if search_query in _]
+
+    else:
+        p(1, "Unable to detect OS")
+
+    p(1, "Please select download:")
+
+    for _ in range(0, len(links), 4):
+        p(0, end="     ")
+        for __, link in enumerate(links[_:_ + 4]):
+            name = link.split('/')[-1].strip('tor-expert-bundle-').strip('.tar.gz').replace("-", " ")
+            p(0, f"{str(_ + __):>2s}: {name:30s}", end="")
+            time.sleep(0.2)
+        p(0)
+
+    download_link = int(i(1, "download << "))
+
     download_link = links[download_link]
     download_location = download_link.split("/")[-1]
 
-    print(" [\033[0;34mr \033[0m] Downloading Tor")
-    time.sleep(0.2)
+    p(1, "Downloading Tor")
     tor_zip = requests.get(download_link)
 
     with open(download_location, "wb") as file:
         file.write(tor_zip.content)
 
-    print(" [\033[0;34mr \033[0m] Downloading Tor signature")
-    time.sleep(0.2)
+    p(1, "Downloading Tor signature")
     signature = requests.get(download_link + ".asc")
 
-    print(" [\033[0;34mr \033[0m] Verifying Tor signature")
-    time.sleep(0.2)
+    p(1, "Verifying Tor signature")
     signature = pgpy.PGPSignature.from_blob(signature.text.encode())
 
     with open(download_location, "rb") as file:
@@ -353,47 +392,39 @@ aBO6HeWxoO5XDO1IcxD38GVDKimmsJa586stbBiyYtEGRK1IR6N7VPbB2KgLVBDb
     key, _ = pgpy.PGPKey.from_blob(TorKey)
 
     if not key.verify(message):
-        print(" [\033[0;34mr \033[0m] Unable to verify downloaded file")
+        p(1, "Unable to verify downloaded file")
         sys.exit(-1)
-    print(" [\033[0;34mr \033[0m] Tor download verified")
-    time.sleep(0.2)
-    print(" [\033[0;34mr \033[0m] Un-Archiving Tor")
-    time.sleep(0.2)
+    p(1, "Tor download verified")
+    p(1, "Un-Archiving Tor")
     with tarfile.open(download_location, "r:gz") as archive:
         archive.extractall()
 
-    print(" [\033[0;34mr \033[0m] Cleaning Tor archive")
-    time.sleep(0.2)
+    p(1, "Cleaning Tor archive")
     os.remove(download_location)
 
-    print(" [\033[0;34mr \033[0m] Rearranging Data folder")
-    time.sleep(0.2)
+    p(1, "Rearranging Data folder")
     shutil.move("data", "tor/")
     os.mkdir("tor/HSD")
     os.mkdir("tor/lib")
 
-    print(" [\033[0;34mr \033[0m] Completed reinstall")
-    time.sleep(0.2)
+    p(1, "Completed reinstall")
 
 
 def create_tor_bridge(external_port, internal_port, socks_port):
-    print(" [\033[0;31mt \033[0m] Creating Tor bridge")
-    time.sleep(0.2)
+    p(3, "Creating Tor bridge")
     control_port = socks_port + 1
 
     working_dir = sys.path[0]
     password = random.randbytes(16).hex()
 
-    print(" [\033[0;31mt \033[0m] Generating password hash")
-    time.sleep(0.2)
+    p(3, "Generating password hash")
+
     hashed_password = subprocess.getoutput(fr'"{working_dir}\tor\tor.exe" -f "{working_dir}\tor\torrc" --hash-password {password}')
-    # hashed_password = [l.split("16:")[1] for l in hashed_password.split("\n") if "16:" in l][0]
     hashed_password = hashed_password.strip().split("\n")[-1].split("16:")[1]
 
-    print(" [\033[0;31mt \033[0m] Creating TorRc file")
-    time.sleep(0.2)
-    print(f" [\033[0;31mt \033[0m] Mapping {external_port} -> TOR -> {internal_port}")
-    time.sleep(0.2)
+    p(3, "Creating TorRc file")
+    p(3, "Mapping {external_port} -> TOR -> {internal_port}")
+
     tor_rc = fr"""
 SOCKSPort {socks_port}
 Log notice file {working_dir}\tor\log.log
@@ -435,12 +466,10 @@ HiddenServicePort {external_port} 127.0.0.1:{internal_port}
         def terminate(self):
             self.process.terminate()
 
-    print(" [\033[0;31mt \033[0m] Starting Tor thread.")
-    time.sleep(0.2)
+    p(3, "Starting Tor thread.")
     process = TorEr()
 
-    print(" [\033[0;31mt \033[0m] Waiting for network to establish")
-    time.sleep(0.2)
+    p(3, "Waiting for network to establish, this may take up to 2 minutes.")
     waiting_for_bootstrap = True
     timeout = 240  # 2 lookups per second; 60 tries == 30 seconds
 
@@ -454,9 +483,8 @@ HiddenServicePort {external_port} 127.0.0.1:{internal_port}
             if item in printed:
                 continue
 
-            print(" [\033[0;33mTi\033[0m]", item.strip())
+            p(4, item.strip())
             printed.append(item)
-            time.sleep(0.2)
 
         with open("tor/log.log", "r") as file:
             log = file.readlines()
@@ -465,9 +493,8 @@ HiddenServicePort {external_port} 127.0.0.1:{internal_port}
             if item in printed:
                 continue
 
-            print(" [\033[0;32mT \033[0m]", item.strip())
+            p(5, item.strip())
             printed.append(item)
-            time.sleep(0.2)
 
             if "Bootstrapped 100% (done)" in item:
                 waiting_for_bootstrap = False
@@ -475,15 +502,20 @@ HiddenServicePort {external_port} 127.0.0.1:{internal_port}
         time.sleep(0.5)
         timeout -= 1
         if timeout < 0:
-            print(" [\033[0;31mt \033[0m] Unable to launch tor")
+            p(3, "Unable to launch tor")
             time.sleep(0.2)
             sys.exit(-1)
 
     return process
 
+
 if __name__ == '__main__':
+    p(2, "Checking path")
+
     if not os.path.exists("tor/"):
         reinstall_tor()
+
+    p(2, "Proceeding with tor/")
 
     socks_port = random.randint(10_001, 12_000)
     port = random.randint(12_001, 14_000)
@@ -500,6 +532,7 @@ if __name__ == '__main__':
         addr = file.read()
 
     print("you are", addr)
+
 
     class Listener(threading.Thread):
         def __init__(self):
@@ -519,6 +552,7 @@ if __name__ == '__main__':
                 data = client.recv(1024)
                 print(">" + data.decode())
 
+
     Listener()
 
     address = input("friend to connect to")
@@ -530,7 +564,7 @@ if __name__ == '__main__':
 
     try:
         while True:
-            t = input(">")
+            t = input("<")
             sock.send(t.encode())
 
     except KeyboardInterrupt:
